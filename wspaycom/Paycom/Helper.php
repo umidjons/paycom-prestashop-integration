@@ -11,9 +11,12 @@ class Helper
         return $data;
     }
 
-    public static function timestamp()
+    public static function timestamp($long = false)
     {
-        return round(microtime(true) * 1000);
+        if ($long) {
+            return round(microtime(true) * 1000);
+        }
+        return time();
     }
 
     public static function toSom($amount)
@@ -24,6 +27,21 @@ class Helper
     public static function toTiyin($amount)
     {
         return 1 * $amount * 100;
+    }
+
+    public static function toTimestampShort($timestamp)
+    {
+        return floor(1 * $timestamp / 1000);
+    }
+
+    public static function toTimestampLong($timestamp)
+    {
+        return $timestamp * 1000;
+    }
+
+    public static function timestampToDatetime($timestamp)
+    {
+        return date('Y-m-d H:i:s', $timestamp);
     }
 
     public static function debug($data, $pre = true)

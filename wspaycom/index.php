@@ -6,24 +6,30 @@ require_once(_PS_CONFIG_DIR_ . 'autoload.php');
 require_once _PS_CONFIG_DIR_ . 'bootstrap.php';
 
 use Paycom\Paycom;
+use Paycom\PaycomException;
 use Paycom\Helper;
 
 $data = Helper::RequestPayload();
 
-$ws = new Paycom($data);
+try {
 
-if (!$data) {
-    return $ws->error(-32600, 'Передан неправильный JSON-RPC объект.');
-}
+    $ws = new Paycom($data);
 
-switch ($data['method']) {
-    case 'CheckPerformTransaction':
-        $ws->CheckPerformTransaction($data['params']['amount'], $data['params']['account']);
-        break;
-    case 'CreateTransaction':
-        $ws->CreateTransaction($data['id'], $data['time'], $data['amount'], $data['account']);
-        break;
-    default:
-        $ws->error(-32601, 'Запрашиваемый метод не найден.', $data['method']);
-        break;
+    if (!$data) {
+        throw new PaycomException($data['id'], 'Передан неправильный JSON-RPC объект.', -32600);
+    }
+
+    switch ($data['method']) {
+        case 'CheckPerformTransaction':
+            $ws->CheckPerformTransaction();
+            break;
+        case 'CreateTransaction':
+            $ws->CreateTransaction();
+            break;
+        default:
+            $ws->error(-32601, 'Запрашиваемый метод не найден.', $data['method']);
+            break;
+    }
+} catch (PaycomException $e) {
+    $e->send();
 }

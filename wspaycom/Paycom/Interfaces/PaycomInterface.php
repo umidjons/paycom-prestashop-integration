@@ -4,9 +4,9 @@ namespace Paycom\Interfaces;
 
 interface PaycomInterface
 {
-    public function CheckPerformTransaction($amount, $account);
+    public function CheckPerformTransaction();
 
-    public function CreateTransaction($id, $time, $amount, $account);
+    public function CreateTransaction();
 
     public function PerformTransaction($id);
 
