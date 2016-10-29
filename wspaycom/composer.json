@@ -1,0 +1,15 @@
+{
+  "name": "paycom/paycom",
+  "description": "Paycom integration component",
+  "authors": [
+    {
+      "name": "Umidjons",
+      "email": "almatov.us@gmail.com"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "Paycom\\": "Paycom/"
+    }
+  }
+}
