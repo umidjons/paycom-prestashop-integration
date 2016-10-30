@@ -79,7 +79,7 @@ class PaycomBase implements Interfaces\PaycomInterface
         // TODO: Implement PerformTransaction() method.
     }
 
-    public function CancelTransaction($id, $reason)
+    public function CancelTransaction()
     {
         // TODO: Implement CancelTransaction() method.
     }

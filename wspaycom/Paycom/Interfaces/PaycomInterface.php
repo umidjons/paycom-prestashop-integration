@@ -10,7 +10,7 @@ interface PaycomInterface
 
     public function PerformTransaction($id);
 
-    public function CancelTransaction($id, $reason);
+    public function CancelTransaction();
 
     public function CheckTransaction();
 

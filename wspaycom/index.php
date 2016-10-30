@@ -33,6 +33,9 @@ try {
         case 'CreateTransaction':
             $ws->CreateTransaction();
             break;
+        case 'CancelTransaction':
+            $ws->CancelTransaction();
+            break;
         default:
             $ws->error(PaycomException::ERROR_METHOD_NOT_FOUND, 'Запрашиваемый метод не найден.', $data['method']);
             break;

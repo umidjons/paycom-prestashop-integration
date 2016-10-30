@@ -10,6 +10,11 @@ ini_set('display_errors', 1);
  */
 class Paycom extends PaycomBase
 {
+    const ORDER_STATE_WAITING_PAY = 1;
+    const ORDER_STATE_PAY_ACCEPTED = 2;
+    const ORDER_STATE_CANCELLED = 6;
+    const ORDER_STATE_RETURN_MONEY = 7;
+
     protected $order;
     protected $customer_id;
     protected $order_reference;
@@ -17,6 +22,7 @@ class Paycom extends PaycomBase
     protected $create_time;
     protected $cancel_time;
     protected $pay_time;
+    protected $state;
 
     public function hasAmount()
     {
@@ -70,9 +76,9 @@ class Paycom extends PaycomBase
         }
     }
 
-    public function findOrderByReference()
+    public function findOrderByReference($reference = null)
     {
-        $this->order_reference = $this->account('reference');
+        $this->order_reference = $reference ? $reference : $this->account('reference');
 
         // get order by reference
         $order_collection = \Order::getByReference($this->order_reference);
@@ -203,14 +209,20 @@ CREATE_TABLE;
         return $row;
     }
 
-    public function cancelTransactionByTimeout()
+    public function _cancelTransaction($reason, $from_state = Transaction::STATE_CREATED)
     {
         $cancel_time = Helper::timestamp();
 
+        $to_state = Transaction::STATE_CANCELLED;
+
+        if ($from_state == Transaction::STATE_COMPLETED) {
+            $to_state = Transaction::STATE_CANCELLED_AFTER_COMPLETE;
+        }
+
         $data = [
             'cancel_time' => Helper::timestampToDatetime($cancel_time),
-            'state' => Transaction::STATE_CANCELLED,
-            'reason' => Reason::REASON_CANCEL_BY_TIMEOUT
+            'state' => $to_state,
+            'reason' => $reason
         ];
 
         Logger::log_line(__METHOD__, 'data=', $data);
@@ -218,7 +230,7 @@ CREATE_TABLE;
         $condition = sprintf(
             "paycom_transaction='%s' and state=%d",
             $this->param('id'),
-            Transaction::STATE_CREATED
+            $from_state
         );
 
         Logger::log_line(__METHOD__, 'condition=', $condition);
@@ -230,8 +242,13 @@ CREATE_TABLE;
         Logger::log_line(__METHOD__, 'cancel_time=', $cancel_time);
 
         $this->cancel_time = $cancel_time;
+        $this->state = $to_state;
 
-        $this->error(self::ERROR_COULD_NOT_PERFORM, 'Невозможно выполнить данную операцию.');
+        if ($reason == Reason::REASON_CANCEL_BY_TIMEOUT) {
+            $this->error(self::ERROR_COULD_NOT_PERFORM, 'Невозможно выполнить данную операцию.');
+        }
+
+        return $success;
     }
 
     public function isTransactionTimedOut()
@@ -276,7 +293,7 @@ CREATE_TABLE;
 
         if ($existing_transaction) {
             if ($this->isTransactionTimedOut()) {
-                $this->cancelTransactionByTimeout();
+                $this->_cancelTransaction(Reason::REASON_CANCEL_BY_TIMEOUT);
             } else {
                 return $this->respond(
                     [
@@ -318,8 +335,54 @@ CREATE_TABLE;
                     Helper::datetimeToTimestamp($transaction['cancel_time']) : 0,
                 'transaction' => $transaction['id'],
                 'state' => 1 * $transaction['state'],
-                'reason' => $transaction['reason']
+                'reason' => 1 * $transaction['reason']
             ]
         );
+    }
+
+    public function CancelTransaction()
+    {
+        $transaction = $this->findTransaction(true);
+
+        if (!$transaction) {
+            $this->error(self::ERROR_TRANSACTION_NOT_FOUND, 'Транзакция не найдена');
+        }
+
+        $transaction['state'] *= 1;
+
+        switch ($transaction['state']) {
+            // if already cancelled, just return cancel data
+            case Transaction::STATE_CANCELLED:
+            case Transaction::STATE_CANCELLED_AFTER_COMPLETE:
+                $this->respond(
+                    [
+                        'transaction' => $transaction['id'],
+                        'cancel_time' => Helper::datetimeToTimestamp($transaction['cancel_time']),
+                        'state' => $transaction['state']
+                    ]
+                );
+                break;
+            // if active, cancel it with given result
+            case Transaction::STATE_CREATED:
+                $this->_cancelTransaction($this->param('reason'), $transaction['state']);
+                $this->respond(
+                    [
+                        'transaction' => $transaction['id'],
+                        'cancel_time' => $this->cancel_time,
+                        'state' => $this->state
+                    ]
+                );
+                break;
+            case Transaction::STATE_COMPLETED:
+                // todo: need testing
+                $this->findOrderByReference($transaction['reference']);
+                if ($this->order->isReturnable()) {
+                    $success = $this->_cancelTransaction($this->param('reason'), $transaction['state']);
+                    if ($success) {
+                        $this->order->setCurrentState(self::ORDER_STATE_CANCELLED);
+                    }
+                }
+                break;
+        }
     }
 }
