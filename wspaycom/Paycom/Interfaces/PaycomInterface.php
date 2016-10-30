@@ -12,7 +12,7 @@ interface PaycomInterface
 
     public function CancelTransaction($id, $reason);
 
-    public function CheckTransaction($id);
+    public function CheckTransaction();
 
     public function GetStatement($from, $to);
 

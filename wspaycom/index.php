@@ -16,18 +16,25 @@ try {
     $ws = new Paycom($data);
 
     if (!$data) {
-        throw new PaycomException($data['id'], 'Передан неправильный JSON-RPC объект.', -32600);
+        throw new PaycomException(
+            $data['id'],
+            'Передан неправильный JSON-RPC объект.',
+            PaycomException::ERROR_INVALID_JSON_RPC_OBJECT
+        );
     }
 
     switch ($data['method']) {
         case 'CheckPerformTransaction':
             $ws->CheckPerformTransaction();
             break;
+        case 'CheckTransaction':
+            $ws->CheckTransaction();
+            break;
         case 'CreateTransaction':
             $ws->CreateTransaction();
             break;
         default:
-            $ws->error(-32601, 'Запрашиваемый метод не найден.', $data['method']);
+            $ws->error(PaycomException::ERROR_METHOD_NOT_FOUND, 'Запрашиваемый метод не найден.', $data['method']);
             break;
     }
 } catch (PaycomException $e) {

@@ -44,6 +44,11 @@ class Helper
         return date('Y-m-d H:i:s', $timestamp);
     }
 
+    public static function datetimeToTimestamp($datetime)
+    {
+        return strtotime($datetime);
+    }
+
     public static function debug($data, $pre = true)
     {
         $var = print_r($data, true);

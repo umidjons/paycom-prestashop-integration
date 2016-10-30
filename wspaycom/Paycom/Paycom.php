@@ -189,14 +189,14 @@ CREATE_TABLE;
         return null;
     }
 
-    public function findTransaction()
+    public function findTransaction($justFind = false)
     {
         $sql = "select * from paycom_transactions where paycom_transaction='" . $this->param('id') . "'";
         $row = \Db::getInstance()->getRow($sql, false);
 
         Logger::log_line(__METHOD__, '$transaction=', $row);
 
-        if ($row && $row['state'] != Transaction::STATE_CREATED) {
+        if (!$justFind && $row && $row['state'] != Transaction::STATE_CREATED) {
             $this->error(self::ERROR_COULD_NOT_PERFORM, 'Невозможно выполнить данную операцию.');
         }
 
@@ -280,7 +280,7 @@ CREATE_TABLE;
             } else {
                 return $this->respond(
                     [
-                        'create_time' => strtotime($existing_transaction['create_time']),
+                        'create_time' => Helper::datetimeToTimestamp($existing_transaction['create_time']),
                         'transaction' => $existing_transaction['id'],
                         'state' => 1 * $existing_transaction['state'],
                         'receivers' => null
@@ -297,6 +297,28 @@ CREATE_TABLE;
                 'transaction' => $this->transaction_id,
                 'state' => Transaction::STATE_CREATED,
                 'receivers' => null
+            ]
+        );
+    }
+
+    public function CheckTransaction()
+    {
+        $transaction = $this->findTransaction(true);
+
+        if (!$transaction) {
+            $this->error(self::ERROR_TRANSACTION_NOT_FOUND, 'Транзакция не найдена');
+        }
+
+        $this->respond(
+            [
+                'create_time' => Helper::datetimeToTimestamp($transaction['create_time']),
+                'perform_time' => isset($transaction['pay_time']) ?
+                    Helper::datetimeToTimestamp($transaction['pay_time']) : 0,
+                'cancel_time' => isset($transaction['cancel_time']) ?
+                    Helper::datetimeToTimestamp($transaction['cancel_time']) : 0,
+                'transaction' => $transaction['id'],
+                'state' => 1 * $transaction['state'],
+                'reason' => $transaction['reason']
             ]
         );
     }

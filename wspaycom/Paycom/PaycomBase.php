@@ -7,6 +7,7 @@ class PaycomBase implements Interfaces\PaycomInterface
     const ERROR_INVALID_AMOUNT = -31001;
     const ERROR_INVALID_ACCOUNT = -31050;
     const ERROR_COULD_NOT_PERFORM = -31008;
+    const ERROR_TRANSACTION_NOT_FOUND = -31003;
     const TRANSACTION_TIMEOUT = 43200000; // ms = 12 hours
 
     protected $params;
@@ -30,7 +31,7 @@ class PaycomBase implements Interfaces\PaycomInterface
 
     public function amount()
     {
-        return 1 * $this->params['params']['amount'];
+        return isset($this->params['params']['amount']) ? 1 * $this->params['params']['amount'] : null;
     }
 
     public function respond($response, $error = null)
@@ -83,7 +84,7 @@ class PaycomBase implements Interfaces\PaycomInterface
         // TODO: Implement CancelTransaction() method.
     }
 
-    public function CheckTransaction($id)
+    public function CheckTransaction()
     {
         // TODO: Implement CheckTransaction() method.
     }
