@@ -8,13 +8,16 @@ class PaycomBase implements Interfaces\PaycomInterface
     const ERROR_INVALID_ACCOUNT = -31050;
     const ERROR_COULD_NOT_PERFORM = -31008;
     const ERROR_TRANSACTION_NOT_FOUND = -31003;
+    const ERROR_UNSUFFICIENT_PRIVILEGE = -32504;
     const TRANSACTION_TIMEOUT = 43200000; // ms = 12 hours
 
+    protected $config;
     protected $params;
     protected $amount;
 
-    public function __construct($params)
+    public function __construct($params, $config)
     {
+        $this->config = $config;
         $this->params = $params;
         $this->amount = $this->amount();
     }
@@ -50,6 +53,20 @@ class PaycomBase implements Interfaces\PaycomInterface
     public function error($code, $message = null, $data = null)
     {
         throw new PaycomException($this->params['id'], $message, $code, $data);
+    }
+
+    public function Authorize()
+    {
+        $headers = apache_request_headers();
+
+        if (!$headers || !isset($headers['Authorization']) ||
+            !preg_match('/^\s*Basic\s+(\S+)\s*$/i', $headers['Authorization'], $matches) ||
+            base64_decode($matches[1]) != $this->config['login'] . ":" . $this->config['key']
+        ) {
+            $this->error(self::ERROR_UNSUFFICIENT_PRIVILEGE, 'Недостаточно привилегий для выполнения метода.');
+        }
+
+        return true;
     }
 
     public function CheckPerformTransaction()

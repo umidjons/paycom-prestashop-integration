@@ -1,9 +1,10 @@
 <?php
 require_once 'vendor/autoload.php';
-require_once(__DIR__ . '/../config/defines.inc.php');
-require_once(__DIR__ . '/../config/settings.inc.php');
-require_once(_PS_CONFIG_DIR_ . 'autoload.php');
+require_once __DIR__ . '/../config/defines.inc.php';
+require_once __DIR__ . '/../config/settings.inc.php';
+require_once _PS_CONFIG_DIR_ . 'autoload.php';
 require_once _PS_CONFIG_DIR_ . 'bootstrap.php';
+require_once 'paycom.config.php';
 
 use Paycom\Paycom;
 use Paycom\PaycomException;
@@ -13,7 +14,9 @@ $data = Helper::RequestPayload();
 
 try {
 
-    $ws = new Paycom($data);
+    $ws = new Paycom($data, $paycomConfig);
+
+    $ws->Authorize();
 
     if (!$data) {
         throw new PaycomException(
