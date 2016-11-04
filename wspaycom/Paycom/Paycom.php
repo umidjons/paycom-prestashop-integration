@@ -306,6 +306,20 @@ CREATE_TABLE;
             }
         }
 
+        // check, is transaction timeout?
+        if ($this->isTransactionTimedOut()) {
+            // not existing transaction, but create time already timed out
+            $this->error(
+                self::ERROR_INVALID_ACCOUNT,
+                PaycomException::message(
+                    'С даты создания транзакции прошло ' . self::TRANSACTION_TIMEOUT . 'мс',
+                    'Tranzaksiya yaratilgan sanadan ' . self::TRANSACTION_TIMEOUT . 'ms o`tgan',
+                    'Since create time of the transaction passed ' . self::TRANSACTION_TIMEOUT . 'ms'
+                ),
+                'time'
+            );
+        }
+
         $transaction_id = $this->saveTransaction();
 
         $this->respond(
@@ -326,6 +340,8 @@ CREATE_TABLE;
             $this->error(self::ERROR_TRANSACTION_NOT_FOUND, 'Транзакция не найдена');
         }
 
+        $reason = isset($transaction['reason']) ? 1 * $transaction['reason'] : null;
+
         $this->respond(
             [
                 'create_time' => Helper::datetimeToTimestamp($transaction['create_time']),
@@ -335,7 +351,7 @@ CREATE_TABLE;
                     Helper::datetimeToTimestamp($transaction['cancel_time']) : 0,
                 'transaction' => $transaction['id'],
                 'state' => 1 * $transaction['state'],
-                'reason' => 1 * $transaction['reason']
+                'reason' => $reason
             ]
         );
     }
