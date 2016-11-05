@@ -21,8 +21,41 @@ class Paycom extends PaycomBase
     protected $transaction_id;
     protected $create_time;
     protected $cancel_time;
+    protected $perform_time;
     protected $pay_time;
     protected $state;
+
+    public static function InitPrestashop()
+    {
+        if (!defined('__PS_BASE_URI__')) {
+            define('__PS_BASE_URI__', '/');
+        }
+
+        if (!defined('_PS_PRICE_DISPLAY_PRECISION_')) {
+            define('_PS_PRICE_DISPLAY_PRECISION_', 2);
+        }
+
+        // Initializing PrestaShop context
+        $context = \Context::getContext();
+        $context->shop = new \Shop(\Shop::CONTEXT_ALL);
+        $context->shop->setContext(\Shop::CONTEXT_SHOP, $context->shop->id);
+
+        \Language::loadLanguages();
+        $context->language = new \Language(1);
+
+        if (!defined('_PS_THEME_DIR')) {
+            define('_PS_THEME_DIR_', _PS_CONFIG_DIR_ . '../themes');
+        }
+
+        require_once(__DIR__ . '/../../config/smarty.config.inc.php');
+        $context->smarty = $smarty;
+
+        if (!defined('_THEME_NAME_')) {
+            define('_THEME_NAME_', $context->shop->getTheme());
+        }
+
+
+    }
 
     public function hasAmount()
     {
@@ -251,14 +284,68 @@ CREATE_TABLE;
         return $success;
     }
 
-    public function isTransactionTimedOut()
+    /**
+     * Checks whether transaction is timed out or not.
+     * @param int|null $trans_time transaction time in timestamp, if not specified time will be gotten from request params.
+     * @return bool
+     */
+    public function isTransactionTimedOut($trans_time = null)
     {
+        $transaction_time = null;
+
+        if (isset($trans_time)) {
+            $transaction_time = 1 * $trans_time;
+        } elseif ($this->param('time')) {
+            $transaction_time = 1 * $this->param('time');
+        } else {
+            $this->error(
+                self::ERROR_INVALID_ACCOUNT,
+                PaycomException::message(
+                    'Время создания транзакции не указана.',
+                    'Tranzaksiya yaratilgan vaqti keltirilmagan.',
+                    'Transaction create time not specified.'
+                ),
+                'time'
+            );
+        }
+
         $now_ms = Helper::timestamp(true);
-        $transaction_time = 1 * $this->param('time');
 
         Logger::log_line(__METHOD__, '$now_ms - $transaction_time =', $now_ms - $transaction_time);
 
         return ($now_ms - $transaction_time) >= self::TRANSACTION_TIMEOUT;
+    }
+
+    public function markOrderAsPayed()
+    {
+        // set order's current state to payed
+        Logger::log_line(__METHOD__, 'Order=', $this->order->id);
+        $this->order->setWsCurrentState(self::ORDER_STATE_PAY_ACCEPTED);
+
+        $perform_time = Helper::timestamp();
+
+        $data = [
+            'pay_time' => Helper::timestampToDatetime($perform_time),
+            'state' => Transaction::STATE_COMPLETED
+        ];
+
+        Logger::log_line(__METHOD__, 'data=', $data);
+
+        $condition = sprintf("paycom_transaction='%s'", $this->param('id'));
+
+        Logger::log_line(__METHOD__, 'condition=', $condition);
+
+        // update transaction on db
+        $success = \Db::getInstance()->update('paycom_transactions', $data, $condition, 0, false, false, false);
+
+        Logger::log_line(__METHOD__, 'success=', $success);
+        Logger::log_line(__METHOD__, 'error=', \Db::getInstance()->getMsgError());
+        Logger::log_line(__METHOD__, 'perform_time=', $perform_time);
+
+        $this->perform_time = $perform_time;
+        $this->state = Transaction::STATE_COMPLETED;
+
+        return $success;
     }
 
     public function CheckPerformTransaction()
@@ -283,6 +370,9 @@ CREATE_TABLE;
 
         $this->findOrderByReference();
 
+        // todo: If order state=self::ORDER_STATE_PAY_ACCEPTED|self::ORDER_STATE_CANCELLED|self::ORDER_STATE_RETURN_MONEY, give error
+        // todo: If order state=self::ORDER_STATE_WAITING_PAY and there is active transaction, give error
+
         $this->isOrderBelongsToCustomer();
         $this->isAmountEqualToOrderAmount();
 
@@ -306,7 +396,23 @@ CREATE_TABLE;
             }
         }
 
+        // check, is transaction timeout?
+        if ($this->isTransactionTimedOut()) {
+            // not existing transaction, but create time already timed out
+            $this->error(
+                self::ERROR_INVALID_ACCOUNT,
+                PaycomException::message(
+                    'С даты создания транзакции прошло ' . self::TRANSACTION_TIMEOUT . 'мс',
+                    'Tranzaksiya yaratilgan sanadan ' . self::TRANSACTION_TIMEOUT . 'ms o`tgan',
+                    'Since create time of the transaction passed ' . self::TRANSACTION_TIMEOUT . 'ms'
+                ),
+                'time'
+            );
+        }
+
         $transaction_id = $this->saveTransaction();
+
+        // todo: Change order state to self::ORDER_STATE_WAITING_PAY
 
         $this->respond(
             [
@@ -326,6 +432,8 @@ CREATE_TABLE;
             $this->error(self::ERROR_TRANSACTION_NOT_FOUND, 'Транзакция не найдена');
         }
 
+        $reason = isset($transaction['reason']) ? 1 * $transaction['reason'] : null;
+
         $this->respond(
             [
                 'create_time' => Helper::datetimeToTimestamp($transaction['create_time']),
@@ -335,7 +443,7 @@ CREATE_TABLE;
                     Helper::datetimeToTimestamp($transaction['cancel_time']) : 0,
                 'transaction' => $transaction['id'],
                 'state' => 1 * $transaction['state'],
-                'reason' => 1 * $transaction['reason']
+                'reason' => $reason
             ]
         );
     }
@@ -382,6 +490,50 @@ CREATE_TABLE;
                         $this->order->setCurrentState(self::ORDER_STATE_CANCELLED);
                     }
                 }
+                break;
+        }
+    }
+
+    public function PerformTransaction()
+    {
+        $transaction = $this->findTransaction(true);
+
+        if (!$transaction) {
+            $this->error(self::ERROR_TRANSACTION_NOT_FOUND, 'Транзакция не найдена');
+        }
+
+        // transaction found, check state
+        switch ($transaction['state'] * 1) {
+            case Transaction::STATE_CREATED:
+                if ($this->isTransactionTimedOut($transaction['paycom_time_str'])) {
+                    $this->_cancelTransaction(Reason::REASON_CANCEL_BY_TIMEOUT);
+                } else {
+                    // get order to update state
+                    $this->findOrderByReference($transaction['order_reference']);
+
+                    // mark order as payed
+                    $this->markOrderAsPayed();
+
+                    $this->respond(
+                        [
+                            'transaction' => $transaction['id'],
+                            'perform_time' => $this->perform_time,
+                            'state' => $this->state
+                        ]
+                    );
+                }
+                break;
+            case Transaction::STATE_COMPLETED:
+                $this->respond(
+                    [
+                        'transaction' => $transaction['id'],
+                        'perform_time' => Helper::datetimeToTimestamp($transaction['pay_time']),
+                        'state' => 1 * $transaction['state']
+                    ]
+                );
+                break;
+            default:
+                $this->error(self::ERROR_COULD_NOT_PERFORM, 'Невозможно выполнить данную операцию.');
                 break;
         }
     }

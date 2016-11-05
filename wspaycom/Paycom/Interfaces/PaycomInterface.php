@@ -8,7 +8,7 @@ interface PaycomInterface
 
     public function CreateTransaction();
 
-    public function PerformTransaction($id);
+    public function PerformTransaction();
 
     public function CancelTransaction();
 

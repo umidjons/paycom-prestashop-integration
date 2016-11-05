@@ -91,7 +91,7 @@ class PaycomBase implements Interfaces\PaycomInterface
         );
     }
 
-    public function PerformTransaction($id)
+    public function PerformTransaction()
     {
         // TODO: Implement PerformTransaction() method.
     }

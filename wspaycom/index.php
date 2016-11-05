@@ -12,6 +12,8 @@ use Paycom\Helper;
 
 $data = Helper::RequestPayload();
 
+Paycom::InitPrestashop();
+
 try {
 
     $ws = new Paycom($data, $paycomConfig);
@@ -35,6 +37,9 @@ try {
             break;
         case 'CreateTransaction':
             $ws->CreateTransaction();
+            break;
+        case 'PerformTransaction':
+            $ws->PerformTransaction();
             break;
         case 'CancelTransaction':
             $ws->CancelTransaction();
