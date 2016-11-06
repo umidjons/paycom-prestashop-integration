@@ -242,6 +242,18 @@ CREATE_TABLE;
         return $row;
     }
 
+    public function findTransactionByReference()
+    {
+        $sql = "select * from paycom_transactions 
+                where order_reference='" . $this->order_reference . "'
+                  and state in (1, 2)";
+        $row = \Db::getInstance()->getRow($sql, false);
+
+        Logger::log_line(__METHOD__, '$transaction=', $row);
+
+        return $row;
+    }
+
     public function _cancelTransaction($reason, $from_state = Transaction::STATE_CREATED)
     {
         $cancel_time = Helper::timestamp();
@@ -316,6 +328,13 @@ CREATE_TABLE;
         return ($now_ms - $transaction_time) >= self::TRANSACTION_TIMEOUT;
     }
 
+    public function markOrderAsWaitingPay()
+    {
+        // set order's current state to waiting pay
+        Logger::log_line(__METHOD__, 'Order=', $this->order->id);
+        $this->order->setWsCurrentState(self::ORDER_STATE_WAITING_PAY);
+    }
+
     public function markOrderAsPayed()
     {
         // set order's current state to payed
@@ -348,6 +367,25 @@ CREATE_TABLE;
         return $success;
     }
 
+    public function hasOtherTransaction()
+    {
+        // is there any active transaction with this order reference?
+        // if there is such, respond error -31008
+        $transaction = $this->findTransactionByReference();
+        if ($transaction &&
+            ($transaction['state'] == Transaction::STATE_CREATED ||
+                $transaction['state'] == Transaction::STATE_COMPLETED)
+        ) {
+            $this->error(self::ERROR_COULD_NOT_PERFORM, 'Невозможно выполнить данную операцию.');
+        }
+    }
+
+    public function isOrderStateAcceptable()
+    {
+        // is order's current_state waiting pay?
+        return $this->order->current_state == self::ORDER_STATE_WAITING_PAY;
+    }
+
     public function CheckPerformTransaction()
     {
         $this->hasAmount();
@@ -355,11 +393,13 @@ CREATE_TABLE;
         $this->hasReference();
 
         $this->findOrderByReference();
+        $this->hasOtherTransaction();
 
         $this->isOrderBelongsToCustomer();
         $this->isAmountEqualToOrderAmount();
 
-        $this->respond(['allow' => true]);
+        $allow = $this->isOrderStateAcceptable();
+        $this->respond(['allow' => $allow]);
     }
 
     public function CreateTransaction()
@@ -369,9 +409,6 @@ CREATE_TABLE;
         $this->hasReference();
 
         $this->findOrderByReference();
-
-        // todo: If order state=self::ORDER_STATE_PAY_ACCEPTED|self::ORDER_STATE_CANCELLED|self::ORDER_STATE_RETURN_MONEY, give error
-        // todo: If order state=self::ORDER_STATE_WAITING_PAY and there is active transaction, give error
 
         $this->isOrderBelongsToCustomer();
         $this->isAmountEqualToOrderAmount();
@@ -412,7 +449,7 @@ CREATE_TABLE;
 
         $transaction_id = $this->saveTransaction();
 
-        // todo: Change order state to self::ORDER_STATE_WAITING_PAY
+        $this->markOrderAsWaitingPay();
 
         $this->respond(
             [
@@ -483,12 +520,14 @@ CREATE_TABLE;
                 break;
             case Transaction::STATE_COMPLETED:
                 // todo: need testing
-                $this->findOrderByReference($transaction['reference']);
+                $this->findOrderByReference($transaction['order_reference']);
                 if ($this->order->isReturnable()) {
                     $success = $this->_cancelTransaction($this->param('reason'), $transaction['state']);
                     if ($success) {
                         $this->order->setCurrentState(self::ORDER_STATE_CANCELLED);
                     }
+                } else {
+                    $this->error(self::ERROR_COULD_NOT_CANCEL, 'Невозможно отменить транзакцию, заказ выполнен.');
                 }
                 break;
         }

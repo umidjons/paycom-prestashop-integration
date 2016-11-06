@@ -5,9 +5,11 @@ namespace Paycom;
 class PaycomBase implements Interfaces\PaycomInterface
 {
     const ERROR_INVALID_AMOUNT = -31001;
-    const ERROR_INVALID_ACCOUNT = -31050;
-    const ERROR_COULD_NOT_PERFORM = -31008;
     const ERROR_TRANSACTION_NOT_FOUND = -31003;
+    /** Could not cancel transaction, because order is delivered or service is provided. */
+    const ERROR_COULD_NOT_CANCEL = -31007;
+    const ERROR_COULD_NOT_PERFORM = -31008;
+    const ERROR_INVALID_ACCOUNT = -31050;
     const ERROR_UNSUFFICIENT_PRIVILEGE = -32504;
     const TRANSACTION_TIMEOUT = 43200000; // ms = 12 hours
 
