@@ -4,6 +4,7 @@ namespace Paycom;
 
 class PaycomException extends \Exception
 {
+    const ERROR_INTERNAL_SYSTEM = -32400;
     const ERROR_INVALID_JSON_RPC_OBJECT = -32600;
     const ERROR_METHOD_NOT_FOUND = -32601;
 

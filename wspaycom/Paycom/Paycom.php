@@ -576,4 +576,24 @@ CREATE_TABLE;
                 break;
         }
     }
+
+    public function ChangePassword()
+    {
+        // if value is not specified, respond with error
+        if (!trim($this->param('password'))) {
+            $this->error(self::ERROR_INVALID_ACCOUNT, 'Некорректный новый пароль.', 'password');
+        }
+
+        // if password is old one, respond with error
+        if ($this->config['key'] == $this->param('password')) {
+            $this->error(self::ERROR_UNSUFFICIENT_PRIVILEGE, 'Недостаточно привилегий для выполнения метода.');
+        }
+
+        // try to write the password into a key file
+        if (!file_put_contents($this->config['keyFile'], $this->param('password'))) {
+            $this->error(PaycomException::ERROR_INTERNAL_SYSTEM, 'Системная ошибка.');
+        }
+
+        $this->respond(['success' => true]);
+    }
 }

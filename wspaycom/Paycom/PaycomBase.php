@@ -22,6 +22,11 @@ class PaycomBase implements Interfaces\PaycomInterface
         $this->config = $config;
         $this->params = $params;
         $this->amount = $this->amount();
+
+        // read key from key file
+        if ($this->config['keyFile']) {
+            $this->config['key'] = file_get_contents($this->config['keyFile']);
+        }
     }
 
     public function param($key)
@@ -113,7 +118,7 @@ class PaycomBase implements Interfaces\PaycomInterface
         // TODO: Implement GetStatement() method.
     }
 
-    public function ChangePassword($password)
+    public function ChangePassword()
     {
         // TODO: Implement ChangePassword() method.
     }
