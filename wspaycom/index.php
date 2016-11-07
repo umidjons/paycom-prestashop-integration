@@ -47,6 +47,9 @@ try {
         case 'ChangePassword':
             $ws->ChangePassword();
             break;
+        case 'GetStatement':
+            $ws->GetStatement();
+            break;
         default:
             $ws->error(PaycomException::ERROR_METHOD_NOT_FOUND, 'Запрашиваемый метод не найден.', $data['method']);
             break;

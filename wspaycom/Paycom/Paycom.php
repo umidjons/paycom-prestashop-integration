@@ -596,4 +596,53 @@ CREATE_TABLE;
 
         $this->respond(['success' => true]);
     }
+
+    public function GetStatement()
+    {
+        $from = 1 * $this->param('from');
+        $to = 1 * $this->param('to');
+
+        if (!$from) {
+            $this->error(self::ERROR_INVALID_ACCOUNT, 'Некорректный период.', 'from');
+        }
+
+        if (!$to) {
+            $this->error(self::ERROR_INVALID_ACCOUNT, 'Некорректный период.', 'to');
+        }
+
+        if ($from >= $to) {
+            $this->error(self::ERROR_INVALID_ACCOUNT, 'Некорректный период. (from >= to)', 'from');
+        }
+
+        // convert timestamps to date-times
+        $from_date = Helper::timestampToDatetime($from);
+        $to_date = Helper::timestampToDatetime($to);
+
+        $sql = "select * from paycom_transactions where paycom_time between '%s' and '%s' order by paycom_time";
+        $sql = sprintf($sql, $from_date, $to_date);
+        $rows = \Db::getInstance()->ExecuteS($sql, true, false);
+
+        $transactions = [];
+        foreach ($rows as $row) {
+            $trx = [
+                'id' => $row['paycom_transaction'],
+                'time' => 1 * $row['paycom_time_str'],
+                'amount' => 1 * $row['amount'],
+                'account' => [
+                    'customer' => $row['customer_id'],
+                    'reference' => $row['order_reference']
+                ],
+                'create_time' => Helper::datetimeToTimestamp($row['create_time']),
+                'perform_time' => Helper::datetimeToTimestamp($row['perform_time']),
+                'cancel_time' => Helper::datetimeToTimestamp($row['cancel_time']),
+                'transaction' => 1 * $row['id'],
+                'state' => 1 * $row['state'],
+                'reason' => isset($row['reason']) ? 1 * $row['reason'] : null,
+                'receivers' => null
+            ];
+            $transactions[] = $trx;
+        }
+
+        $this->respond(['transactions' => $transactions]);
+    }
 }

@@ -113,7 +113,7 @@ class PaycomBase implements Interfaces\PaycomInterface
         // TODO: Implement CheckTransaction() method.
     }
 
-    public function GetStatement($from, $to)
+    public function GetStatement()
     {
         // TODO: Implement GetStatement() method.
     }

@@ -41,6 +41,14 @@ class Helper
 
     public static function timestampToDatetime($timestamp)
     {
+        $timestamp = (string)$timestamp;
+
+        // if milliseconds, convert to seconds
+        if (strlen($timestamp) == 13) {
+            $timestamp = self::toTimestampShort($timestamp);
+        }
+
+        // convert to datetime
         return date('Y-m-d H:i:s', $timestamp);
     }
 

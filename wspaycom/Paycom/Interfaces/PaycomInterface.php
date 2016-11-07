@@ -14,7 +14,7 @@ interface PaycomInterface
 
     public function CheckTransaction();
 
-    public function GetStatement($from, $to);
+    public function GetStatement();
 
     public function ChangePassword();
 }
